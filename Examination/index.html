@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title> Alidu's Manor</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { overflow: hidden; background: #0a0a0f; font-family: 'Courier New', monospace; }
+
+      /* ── Loading Screen ───────────────────────────────────────────── */
+      #loader {
+        position: fixed; inset: 0; z-index: 9999;
+        background: #0a0a0f;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 32px;
+        transition: opacity 0.8s ease, visibility 0.8s ease;
+      }
+      #loader.hidden { opacity: 0; visibility: hidden; }
+
+      .loader-title {
+        font-size: clamp(18px, 3vw, 28px);
+        letter-spacing: 0.35em;
+        color: #c8d8e8;
+        text-transform: uppercase;
+        font-weight: 300;
+        opacity: 0;
+        animation: fadeUp 0.6s 0.2s ease forwards;
+      }
+
+      .loader-subtitle {
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        color: #4a6070;
+        text-transform: uppercase;
+        opacity: 0;
+        animation: fadeUp 0.6s 0.5s ease forwards;
+      }
+
+      /* Dot grid loader */
+      .dots-wrap {
+        display: grid; grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+        opacity: 0; animation: fadeUp 0.5s 0.3s ease forwards;
+      }
+      .dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: #1e3040;
+        animation: dotPulse 1.6s ease-in-out infinite;
+      }
+      .dot:nth-child(1)  { animation-delay: 0.0s; }
+      .dot:nth-child(2)  { animation-delay: 0.1s; }
+      .dot:nth-child(3)  { animation-delay: 0.2s; }
+      .dot:nth-child(4)  { animation-delay: 0.3s; }
+      .dot:nth-child(5)  { animation-delay: 0.4s; }
+      .dot:nth-child(6)  { animation-delay: 0.1s; }
+      .dot:nth-child(7)  { animation-delay: 0.2s; }
+      .dot:nth-child(8)  { animation-delay: 0.3s; }
+      .dot:nth-child(9)  { animation-delay: 0.4s; }
+      .dot:nth-child(10) { animation-delay: 0.5s; }
+      .dot:nth-child(11) { animation-delay: 0.2s; }
+      .dot:nth-child(12) { animation-delay: 0.3s; }
+      .dot:nth-child(13) { animation-delay: 0.4s; }
+      .dot:nth-child(14) { animation-delay: 0.5s; }
+      .dot:nth-child(15) { animation-delay: 0.6s; }
+      .dot:nth-child(16) { animation-delay: 0.3s; }
+      .dot:nth-child(17) { animation-delay: 0.4s; }
+      .dot:nth-child(18) { animation-delay: 0.5s; }
+      .dot:nth-child(19) { animation-delay: 0.6s; }
+      .dot:nth-child(20) { animation-delay: 0.7s; }
+      .dot:nth-child(21) { animation-delay: 0.4s; }
+      .dot:nth-child(22) { animation-delay: 0.5s; }
+      .dot:nth-child(23) { animation-delay: 0.6s; }
+      .dot:nth-child(24) { animation-delay: 0.7s; }
+      .dot:nth-child(25) { animation-delay: 0.8s; }
+      @keyframes dotPulse {
+        0%, 100% { background: #1e3040; transform: scale(1); }
+        50%       { background: #5ab3d9; transform: scale(1.7);
+                    box-shadow: 0 0 8px #5ab3d960; }
+      }
+
+      /* Progress bar */
+      .progress-track {
+        width: min(360px, 70vw); height: 2px;
+        background: #1a2530; border-radius: 2px; overflow: hidden;
+        opacity: 0; animation: fadeUp 0.5s 0.6s ease forwards;
+      }
+      .progress-fill {
+        height: 100%; width: 0%;
+        background: linear-gradient(90deg, #2d7fa8, #5ab3d9, #8fcfe8);
+        border-radius: 2px;
+        transition: width 0.3s ease;
+        box-shadow: 0 0 8px #5ab3d980;
+      }
+
+      .progress-label {
+        font-size: 10px; letter-spacing: 0.15em;
+        color: #3a5060; margin-top: -24px;
+        opacity: 0; animation: fadeUp 0.5s 0.7s ease forwards;
+        min-width: min(360px, 70vw);
+        display: flex; justify-content: space-between;
+        text-transform: uppercase;
+      }
+
+      .asset-status {
+        font-size: 10px; letter-spacing: 0.1em;
+        color: #2d5060; height: 14px;
+        opacity: 0; animation: fadeUp 0.5s 0.8s ease forwards;
+      }
+
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      /* ── HUD ──────────────────────────────────────────────────────── */
+      #hud {
+        position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+        background: rgba(10, 15, 20, 0.65);
+        backdrop-filter: blur(8px);
+        color: #8ab0c0; font-family: 'Courier New', monospace;
+        font-size: 11px; letter-spacing: 0.12em;
+        padding: 7px 18px; border-radius: 30px;
+        border: 1px solid rgba(90, 179, 217, 0.15);
+        pointer-events: none; white-space: nowrap;
+        text-transform: uppercase;
+        opacity: 0; transition: opacity 0.6s ease;
+      }
+      #hud.visible { opacity: 1; }
+      #hud span { color: #5ab3d9; }
+    </style>
+    <script>
+      /* ── Custom A-Frame components ─────────────────────────────── */
+      AFRAME.registerComponent('skybox-fix', {
+        init: function () {
+          var self = this;
+          this.el.addEventListener('model-loaded', function () {
+            var mesh = self.el.getObject3D('mesh');
+            if (!mesh) return;
+            mesh.traverse(function (node) {
+              if (node.isMesh) {
+                node.renderOrder = -999;
+                node.material.depthWrite = false;
+                node.material.depthTest = false;
+              }
+            });
+          });
+        }
+      });
+
+      AFRAME.registerComponent('fly-vertical', {
+        schema: { speed: { default: 50 } },
+        init: function () {
+          this.keys = {};
+          this.onKeyDown = this.onKeyDown.bind(this);
+          this.onKeyUp   = this.onKeyUp.bind(this);
+          window.addEventListener('keydown', this.onKeyDown, { passive: true });
+          window.addEventListener('keyup',   this.onKeyUp,   { passive: true });
+        },
+        onKeyDown: function (e) { this.keys[e.code] = true; },
+        onKeyUp:   function (e) { this.keys[e.code] = false; },
+        tick: function (t, dt) {
+          var delta = (dt / 1000) * this.data.speed;
+          var pos   = this.el.object3D.position;
+          if (this.keys['KeyE']) pos.y += delta;
+          if (this.keys['KeyQ']) pos.y -= delta;
+        },
+        remove: function () {
+          window.removeEventListener('keydown', this.onKeyDown);
+          window.removeEventListener('keyup',   this.onKeyUp);
+        }
+      });
+
+      /* ── Loading progress tracking ─────────────────────────────── */
+      document.addEventListener('DOMContentLoaded', function () {
+        var loader  = document.getElementById('loader');
+        var fill    = document.getElementById('progress-fill');
+        var pct     = document.getElementById('progress-pct');
+        var status  = document.getElementById('asset-status');
+        var hud     = document.getElementById('hud');
+
+        var assets  = document.querySelector('a-assets');
+        var items   = [];
+        var loaded  = 0;
+
+        function setProgress(v, label) {
+          fill.style.width = v + '%';
+          pct.textContent  = Math.round(v) + '%';
+          if (label) status.textContent = label;
+        }
+
+        function onItemLoad(name) {
+          loaded++;
+          setProgress((loaded / items.length) * 100, 'Loaded: ' + name);
+        }
+
+        function finish() {
+          setProgress(100, 'Scene ready');
+          setTimeout(function () {
+            loader.classList.add('hidden');
+            hud.classList.add('visible');
+          }, 600);
+        }
+
+        assets.addEventListener('loaded', finish);
+
+        assets.addEventListener('progress', function (e) {
+          if (e.detail && e.detail.loadedBytes != null) {
+            var p = (e.detail.loadedBytes / (e.detail.totalBytes || 1)) * 100;
+            setProgress(Math.min(p, 99));
+          }
+        });
+
+        // Per-item tracking
+        var assetItems = assets.querySelectorAll('a-asset-item, img, video, audio');
+        assetItems.forEach(function (el) {
+          items.push(el);
+          var name = (el.src || el.getAttribute('src') || '').split('/').pop();
+          el.addEventListener('loaded', function () { onItemLoad(name); });
+          el.addEventListener('error',  function () { onItemLoad('(failed) ' + name); });
+        });
+        if (!items.length) { finish(); return; }
+
+        // Fallback timeout
+        setTimeout(function () {
+          if (!loader.classList.contains('hidden')) finish();
+        }, 30000);
+      });
+    </script>
+    <script src="js/water.js"></script>
+  </head>
+  <body>
+
+    <!-- ── Loading Screen ──────────────────────────────────────────── -->
+    <div id="loader">
+      <div class="loader-title">Alidu's Manor</div>
+      <div class="loader-subtitle">Initializing scene</div>
+
+      <div class="dots-wrap">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+
+      <div class="progress-label">
+        <span>Assets</span>
+        <span id="progress-pct">0%</span>
+      </div>
+
+      <div class="asset-status" id="asset-status">Loading assets…</div>
+    </div>
+
+    <!-- ── HUD ─────────────────────────────────────────────────────── -->
+    <div id="hud">
+      <span>WASD</span> move &nbsp;·&nbsp; <span>Mouse</span> look &nbsp;·&nbsp; <span>Q/E</span> down/up
+    </div>
+
+    <!-- ── A-Frame Scene ───────────────────────────────────────────── -->
+    <a-scene
+      background="color: #87CEEB"
+      renderer="antialias: false; logarithmicDepthBuffer: false; maxCanvasWidth: 1920; maxCanvasHeight: 1080; physicallyCorrectLights: false"
+      stats="false"
+      loading-screen="dotsColor: #5ab3d9; backgroundColor: #0a0a0f">
+
+      <a-assets timeout="25000">
+        <a-asset-item id="apartment-model" src="3d-models/studio_apartment_vray_baked_textures_included.glb" response-type="arraybuffer"></a-asset-item>
+        <a-asset-item id="bed-model"       src="3d-models/bed_v1.glb"                                        response-type="arraybuffer"></a-asset-item>
+        <a-asset-item id="cat-model"       src="3d-models/sleepy_comfy_cat.glb"                              response-type="arraybuffer"></a-asset-item>
+        <a-asset-item id="car"             src="3d-models/car.glb"                     response-type="arraybuffer"></a-asset-item>
+        <a-asset-item id="tree"             src="3d-models/tree.glb"                     response-type="arraybuffer"></a-asset-item>
+        <img id="sky"           src="textures/beautiful-aerial-shot-breathtaking-clouds-amazing-blue-sky-up.jpg" crossorigin="anonymous">
+        <img id="ground"        src="textures/grey-slate-paving-stones.jpg"        crossorigin="anonymous">
+        <img id="pool-tiles"    src="textures/Translucent_Glass_Safety_baseColor.jpeg" crossorigin="anonymous">
+        <img id="pool-floor-tile" src="textures/SUC_Floor_023_baseColor.jpeg"      crossorigin="anonymous">
+      </a-assets>
+
+      <!-- Sky -->
+      <a-sky src="#sky" radius="5000"></a-sky>
+
+      <!-- Ground -->
+      <a-plane src="#ground" position="0 -11 0" scale="5000 5000 1" rotation="-90 0 0"></a-plane>
+
+      <!-- Pool -->
+      <a-entity position="800 -10.5 0" scale="40 20 40">
+        <a-box position="0 0 0"   width="10" height="0.1" depth="6"   src="#pool-floor-tile"></a-box>
+        <a-box position="0 1 -3"  width="10" height="2"   depth="0.2" src="#pool-tiles"></a-box>
+        <a-box position="0 1  3"  width="10" height="2"   depth="0.2" src="#pool-tiles"></a-box>
+        <a-box position="-5 1 0"  width="0.2" height="2"  depth="6.2" src="#pool-tiles"></a-box>
+        <a-box position=" 5 1 0"  width="0.2" height="2"  depth="6.2" src="#pool-tiles"></a-box>
+        <a-plane position="0 1.5 0" rotation="-90 0 0" width="9.8" height="5.8"
+                 segments-width="30" segments-height="30"
+                 water-wobble="speed: 1.5; color: #0077BE; opacity: 0.7"></a-plane>
+      </a-entity>
+
+      <!-- Tree -->
+      <a-entity
+        gltf-model="#tree"
+        position="900 -5 100"
+        scale="1 1 1" 
+      >
+      </a-entity>
+
+      <a-entity
+        gltf-model="#tree"
+        position="-800 -5 100"
+        scale="1 1 1" 
+      >
+      </a-entity>
+
+      <!-- Apartment -->
+      <a-entity gltf-model="#apartment-model" position="0 0 0" scale="100 100 100" rotation="0 90 0"></a-entity>
+
+      <!-- Cat -->
+      <a-entity gltf-model="#cat-model" position="0 10 0" scale="25 25 25" rotation="0 45 0"></a-entity>
+
+      <!-- Car -->
+      <a-entity
+        gltf-model="#car"
+        position="-800 -5 0"
+        scale="20 20 10" 
+      >
+      </a-entity>
+      <!-- Bed -->
+      <a-entity gltf-model="#bed-model" position="-190 0.1 -110" rotation="0 90 0" scale="13 13 13"></a-entity>
+
+      <!-- Lighting -->
+      <a-entity light="type: ambient; intensity: 0.8"></a-entity>
+      <a-entity light="type: directional; intensity: 0.9; castShadow: false" position="30 40 20"></a-entity>
+      <a-entity light="type: point; intensity: 1.2; distance: 200" position="0 15 0"></a-entity>
+
+      <!-- Camera rig -->
+      <a-entity id="rig" position="0 120 750" fly-vertical="speed: 50">
+        <a-camera
+          look-controls="reverseMouseDrag: false; pointerLockEnabled: true"
+          wasd-controls="acceleration: 800"
+          far="8000"
+          near="0.5"
+          fov="75"
+          rotation="-10 180 0">
+        </a-camera>
+      </a-entity>
+
+    </a-scene>
+  </body>
+</html>
